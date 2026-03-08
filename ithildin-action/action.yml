@@ -5,6 +5,19 @@ inputs:
     description: 'Path to repository root'
     required: false
     default: '.'
+  description:
+    description: 'Repository description written to metadata.json'
+    required: false
+  categories:
+    description: 'Repository categories as a JSON array or comma-separated list'
+    required: false
+  tags:
+    description: 'Repository tags as a JSON array or comma-separated list'
+    required: false
+  theme:
+    description: 'Visual theme (parchment, obsidian, arctic, ember, terminal)'
+    required: false
+    default: 'parchment'
   output:
     description: 'Output folder for generated static site'
     required: false
@@ -18,12 +31,23 @@ runs:
     - name: Install dependencies
       shell: bash
       run: cd ${{ github.action_path }}/.. && npm ci
-    - name: Build CSS
-      shell: bash
-      run: cd ${{ github.action_path }}/.. && npm run build:css
     - name: Build static site
       shell: bash
-      run: node ${{ github.action_path }}/../bin/ithildin.js --repo "${{ inputs.repository }}" --out "${{ inputs.output }}"
+      run: |
+        args=(--repo "${{ inputs.repository }}" --out "${{ inputs.output }}")
+        if [ -n "${{ inputs.description }}" ]; then
+          args+=(--description "${{ inputs.description }}")
+        fi
+        if [ -n "${{ inputs.categories }}" ]; then
+          args+=(--categories "${{ inputs.categories }}")
+        fi
+        if [ -n "${{ inputs.tags }}" ]; then
+          args+=(--tags "${{ inputs.tags }}")
+        fi
+        if [ -n "${{ inputs.theme }}" ]; then
+          args+=(--theme "${{ inputs.theme }}")
+        fi
+        node "${{ github.action_path }}/../bin/ithildin.js" "${args[@]}"
     - name: Upload dist artifact
       uses: actions/upload-artifact@v4
       with:
