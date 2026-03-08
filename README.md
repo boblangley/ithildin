@@ -8,7 +8,8 @@ Ithildin is a CLI-first static site generator that turns one or more git reposit
 - File tree navigation with Alpine.js-powered expand/collapse behavior
 - Syntax-highlighted source rendering via Shiki
 - Markdown rendering via Remark + `remark-gfm` (tables, task lists, strikethrough, autolinks)
-- Tailwind CSS compiled at build time (no runtime CSS framework)
+- 5 visual themes: **parchment** (default), **obsidian**, **arctic**, **ember**, **terminal**
+- Client-side theme switcher with localStorage persistence
 - Bundled GitHub Action for build + artifact upload
 - Generated `manifest.schema.json` to document the expected manifest shape
 - Generated per-repository `metadata.json` files for manifest aggregation workflows
@@ -17,8 +18,7 @@ Ithildin is a CLI-first static site generator that turns one or more git reposit
 
 ```bash
 npm install
-npm run build
-node ./bin/ithildin.js --repo . --out ./dist --description "Static site generator for browsing git repositories." --categories '["tools","documentation"]'
+node ./bin/ithildin.js --repo . --out ./dist
 ```
 
 For this repository, `npm run build:dist` rebuilds `dist/` and writes `dist/manifest.json` automatically using metadata from `package.json`.
@@ -27,19 +27,22 @@ CLI options:
 
 - `--repo <path>` (repeatable)
 - `--out <path>`
+- `--theme <name>` — visual theme (`parchment`, `obsidian`, `arctic`, `ember`, `terminal`)
 - `--description <text>`
 - `--categories <json-array-or-csv>`
 - `--category <name>` (repeatable)
+- `--tags <json-array-or-csv>`
+- `--tag <name>` (repeatable)
 
 Example with multiple repos:
 
 ```bash
-ithildin --repo ./repo-a --repo ./repo-b --out ./dist
+ithildin --repo ./repo-a --repo ./repo-b --out ./dist --theme obsidian
 ```
 
-The generated root `index.html` is a small client-side app. It attempts to fetch `manifest.json`, groups repositories by category when categories are present, and shows `No repositories found.` when the manifest is missing or invalid.
+The generated root `index.html` is a small client-side app. It attempts to fetch `manifest.json`, groups repositories by category when categories are present, and shows `No repositories found.` when the manifest is missing or invalid. Visitors can switch themes at any time via the theme switcher dropdown.
 
-Each generated repository also includes `<slug>/metadata.json`, containing `slug`, `name`, `description`, and `categories`. This is intended as source material for whatever aggregation process users build to produce the shared `manifest.json`.
+Each generated repository also includes `<slug>/metadata.json`, containing `slug`, `name`, `description`, `categories`, and `tags`. This is intended as source material for whatever aggregation process users build to produce the shared `manifest.json`.
 
 Ithildin writes `manifest.schema.json` into the output directory. Users can generate `manifest.json` however they want, as long as it matches the schema.
 
@@ -48,8 +51,9 @@ If you want a repository-local shortcut like this project uses, add an `ithildin
 ```json
 {
   "ithildin": {
-    "description": "Optional override for metadata.json and dist/manifest.json",
-    "categories": ["tools", "documentation"]
+    "theme": "parchment",
+    "categories": ["tools", "documentation"],
+    "tags": ["git", "source-code"]
   }
 }
 ```
@@ -58,7 +62,6 @@ If you want a repository-local shortcut like this project uses, add an `ithildin
 
 ```bash
 npm install
-npm run build
 npm test
 ```
 
@@ -83,6 +86,8 @@ jobs:
           repository: .
           description: Static site generator for browsing git repositories.
           categories: '["tools","documentation"]'
+          tags: '["git","source-code"]'
+          theme: parchment
           output: dist
 ```
 

@@ -7,6 +7,8 @@ Composite GitHub Action to build Ithildin static output and upload `dist` as a w
 - `repository` (default `.`)
 - `description`
 - `categories` (`["category-a","category-b"]` or `category-a,category-b`)
+- `tags` (`["tag-a","tag-b"]` or `tag-a,tag-b`)
+- `theme` — visual theme: `parchment` (default), `obsidian`, `arctic`, `ember`, `terminal`
 - `output` (default `dist`)
 
 ## Usage
@@ -17,6 +19,8 @@ Composite GitHub Action to build Ithildin static output and upload `dist` as a w
     repository: .
     description: Static site generator for browsing git repositories.
     categories: '["tools","documentation"]'
+    tags: '["git","source-code"]'
+    theme: parchment
     output: dist
 ```
 
