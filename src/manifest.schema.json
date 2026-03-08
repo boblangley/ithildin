@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ithildin Manifest",
+  "description": "Manifest consumed by the root Ithildin index page.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "repositories"
+  ],
+  "properties": {
+    "repositories": {
+      "type": "array",
+      "description": "Repositories exposed by the shared index.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "name"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "Stable repository identifier used for default routing.",
+            "pattern": "^[a-z0-9]+(?:[a-z0-9-]*[a-z0-9])?$"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name shown in the root index.",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "description": "Optional absolute or relative URL to the repository index. Defaults to ./repos/<slug>/index.html when omitted."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional summary shown beneath the repository name."
+          },
+          "categories": {
+            "type": "array",
+            "description": "Optional categories used by the root index to group repositories.",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "tags": {
+            "type": "array",
+            "description": "Optional freeform tags displayed as pills on repository cards.",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Optional last update timestamp for external tooling.",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}
