@@ -7,8 +7,7 @@
     "ithildin": "bin/ithildin.js"
   },
   "scripts": {
-    "build:css": "tailwindcss -i ./src/styles/input.css -o ./src/styles/site.css --minify",
-    "build": "npm run build:css",
+    "build:dist": "node ./scripts/build-dist.js",
     "test": "node ./scripts/smoke-test.js"
   },
   "keywords": [
@@ -22,6 +21,15 @@
     "type": "git",
     "url": "git+https://github.com/boblangley/ithildin.git"
   },
+  "ithildin": {
+    "categories": [
+      "tools"
+    ],
+    "tags": [
+      "git",
+      "source-code"
+    ]
+  },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },
@@ -32,8 +40,5 @@
     "remark-html": "^16.0.1",
     "shiki": "^1.22.2"
   },
-  "devDependencies": {
-    "@tailwindcss/typography": "^0.5.15",
-    "tailwindcss": "^3.4.17"
-  }
+  "devDependencies": {}
 }
