@@ -5,12 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { remark } from 'remark';
 import remarkGfm from 'remark-gfm';
 import remarkHtml from 'remark-html';
+import { visit } from 'unist-util-visit';
 import { codeToHtml } from 'shiki';
 import {
   buildTree,
   ensureDir,
   escapeHtml,
   htmlFileName,
+  isBinary,
   isMarkdown,
   languageFromPath,
   renderTree,
@@ -31,9 +33,31 @@ async function copyAssets(outDir) {
   await fs.copyFile(alpinePath, path.join(assetsDir, 'alpine.min.js'));
 }
 
-async function renderContent(filePath, source) {
+function remarkRewriteLinks({ filePath, filesBase, fileSet }) {
+  const dir = path.posix.dirname(filePath);
+  return () => (tree) => {
+    visit(tree, 'link', (node) => {
+      const url = node.url;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith('#') || url.startsWith('/')) return;
+
+      const [rawPath, hash] = url.split('#');
+      const resolved = path.posix.normalize(path.posix.join(dir, rawPath));
+
+      if (fileSet.has(resolved)) {
+        const fragment = hash ? `#${hash}` : '';
+        node.url = `${filesBase}/${encodeURIComponent(htmlFileName(resolved))}${fragment}`;
+      }
+    });
+  };
+}
+
+async function renderContent(filePath, source, { filesBase = '../files', fileSet = new Set() } = {}) {
   if (isMarkdown(filePath)) {
-    const processed = await remark().use(remarkGfm).use(remarkHtml).process(source);
+    const processed = await remark()
+      .use(remarkGfm)
+      .use(remarkRewriteLinks({ filePath, filesBase, fileSet }))
+      .use(remarkHtml)
+      .process(source);
     return `<article class="prose prose-invert max-w-none">${processed.toString()}</article>`;
   }
 
@@ -41,10 +65,17 @@ async function renderContent(filePath, source) {
   try {
     return await codeToHtml(source, {
       lang: language,
-      theme: 'github-dark-default'
+      theme: 'github-dark-default',
+      transformers: [
+        {
+          line(node, line) {
+            node.properties['data-line'] = line;
+          }
+        }
+      ]
     });
   } catch {
-    return `<pre class="bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-auto"><code>${escapeHtml(source)}</code></pre>`;
+    return `<pre class="code-fallback"><code>${escapeHtml(source)}</code></pre>`;
   }
 }
 
@@ -54,41 +85,74 @@ export async function generateSite(repoPaths, outDir) {
   await copyAssets(outDir);
 
   const repoMetadata = [];
+  const usedSlugs = new Map();
 
   for (const repoPath of repoPaths) {
     const repoName = path.basename(repoPath);
-    const slug = slugifyRepo(repoPath);
+    let slug = slugifyRepo(repoPath);
+
+    if (usedSlugs.has(slug)) {
+      let counter = 2;
+      while (usedSlugs.has(`${slug}-${counter}`)) counter++;
+      slug = `${slug}-${counter}`;
+    }
+    usedSlugs.set(slug, repoPath);
+
     const repoOutDir = path.join(outDir, slug);
     const filesOutDir = path.join(repoOutDir, 'files');
 
     await ensureDir(filesOutDir);
 
-    const files = await walkRepo(repoPath);
+    const allFiles = await walkRepo(repoPath);
+    const files = allFiles.filter((f) => !isBinary(f));
+    const fileSet = new Set(allFiles);
     const tree = buildTree(files);
-    const sidebar = renderTree(tree, slug);
 
     const fileLinks = [];
     for (const file of files) {
-      const srcPath = path.join(repoPath, file);
-      const source = await fs.readFile(srcPath, 'utf8');
-      const rendered = await renderContent(file, source);
+      try {
+        const srcPath = path.join(repoPath, file);
+        const source = await fs.readFile(srcPath, 'utf8');
+        const rendered = await renderContent(file, source, { filesBase: '../files', fileSet });
 
-      const outputPath = path.join(filesOutDir, htmlFileName(file));
-      await ensureDir(path.dirname(outputPath));
+        const outName = htmlFileName(file);
+        const outputPath = path.join(filesOutDir, outName);
+        const sidebar = renderTree(tree, '../files', file);
 
-      const page = pageShell({
-        title: `${repoName} / ${file}`,
-        sidebar,
-        content: `<h1 class="text-xl font-semibold mb-4">${escapeHtml(file)}</h1>${rendered}`,
-        rootPath: '../..'
-      });
+        const page = pageShell({
+          title: `${repoName} / ${file}`,
+          sidebar,
+          content: `<h1 class="text-xl font-semibold mb-4">${escapeHtml(file)}</h1>${rendered}`,
+          rootPath: '../..'
+        });
 
-      await fs.writeFile(outputPath, page, 'utf8');
+        await fs.writeFile(outputPath, page, 'utf8');
 
-      fileLinks.push(`<li><a class="text-sky-300 hover:text-sky-200" href="./files/${encodeURI(htmlFileName(file))}">${escapeHtml(file)}</a></li>`);
+        fileLinks.push(
+          `<li><a class="text-sky-300 hover:text-sky-200" href="./files/${encodeURIComponent(outName)}">${escapeHtml(file)}</a></li>`
+        );
+      } catch (err) {
+        console.warn(`Skipping ${file}: ${err.message}`);
+      }
     }
 
-    await fs.writeFile(path.join(repoOutDir, 'index.html'), repoIndexPage(repoName, fileLinks.join('')), 'utf8');
+    let readmeContent = '<h1 class="text-xl font-semibold mb-4">Files</h1><ul class="space-y-2">' + fileLinks.join('') + '</ul>';
+    const readmeFile = allFiles.find((f) => /^readme\.md$/i.test(f));
+    if (readmeFile) {
+      try {
+        const readmeSrc = await fs.readFile(path.join(repoPath, readmeFile), 'utf8');
+        readmeContent = await renderContent(readmeFile, readmeSrc, { filesBase: './files', fileSet });
+      } catch {}
+    }
+
+    const indexPage = pageShell({
+      title: repoName,
+      sidebar: renderTree(tree, './files'),
+      content: readmeContent,
+      rootPath: '..'
+    });
+
+    await fs.writeFile(path.join(repoOutDir, 'index.html'), indexPage, 'utf8');
 
     repoMetadata.push({ slug, name: repoName });
   }

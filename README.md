@@ -40,7 +40,7 @@ npm test
 
 ## GitHub Action
 
-A composite action is available at `ithildin-action/action.yml`.
+A composite action is available — see the [action README](ithildin-action/README.md) for details.
 
 Example workflow:
 
