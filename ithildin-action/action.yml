@@ -15,12 +15,15 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: '20'
-    - name: Install Ithildin
+    - name: Install dependencies
       shell: bash
-      run: npm install -g ithildin
+      run: cd ${{ github.action_path }}/.. && npm ci
+    - name: Build CSS
+      shell: bash
+      run: cd ${{ github.action_path }}/.. && npm run build:css
     - name: Build static site
       shell: bash
-      run: ithildin --repo "${{ inputs.repository }}" --out "${{ inputs.output }}"
+      run: node ${{ github.action_path }}/../bin/ithildin.js --repo "${{ inputs.repository }}" --out "${{ inputs.output }}"
     - name: Upload dist artifact
       uses: actions/upload-artifact@v4
       with:
