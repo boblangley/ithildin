@@ -1,0 +1,31 @@
+{
+  "name": "ithildin",
+  "version": "0.1.0",
+  "description": "Static site generator for browsing git repositories",
+  "type": "module",
+  "bin": {
+    "ithildin": "bin/ithildin.js"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/styles/input.css -o ./src/styles/site.css --minify",
+    "build": "npm run build:css",
+    "test": "node ./scripts/smoke-test.js"
+  },
+  "keywords": [
+    "static-site",
+    "documentation",
+    "code-browser",
+    "generator"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "alpinejs": "^3.14.1",
+    "remark": "^15.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-html": "^16.0.1",
+    "shiki": "^1.22.2"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}
