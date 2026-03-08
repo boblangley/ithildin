@@ -18,7 +18,6 @@ jobs:
           node-version: '20'
           registry-url: 'https://npm.pkg.github.com'
       - run: npm ci
-      - run: npm run build:css
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
