@@ -19,15 +19,36 @@ import {
   slugifyRepo,
   walkRepo
 } from './utils.js';
-import { globalIndexPage, pageShell, repoIndexPage } from './templates.js';
+import { pageShell, rootIndexPage } from './templates.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
-async function copyAssets(outDir) {
+export const THEMES = ['parchment', 'obsidian', 'arctic', 'ember', 'terminal'];
+export const DEFAULT_THEME = 'parchment';
+
+const SHIKI_THEMES = {
+  parchment: 'solarized-light',
+  obsidian: 'dracula-soft',
+  arctic: 'min-light',
+  ember: 'github-dark-default',
+  terminal: 'vitesse-dark'
+};
+
+async function copyAssets(outDir, theme) {
   const assetsDir = path.join(outDir, 'assets');
-  await ensureDir(assetsDir);
-  await fs.copyFile(path.join(here, 'styles', 'site.css'), path.join(assetsDir, 'site.css'));
+  const themesDir = path.join(assetsDir, 'themes');
+  await ensureDir(themesDir);
+
+  const themeSrcDir = path.join(here, 'styles', 'themes');
+  for (const name of THEMES) {
+    await fs.copyFile(path.join(themeSrcDir, `${name}.css`), path.join(themesDir, `${name}.css`));
+  }
+
+  const defaultCss = path.join(themeSrcDir, `${theme}.css`);
+  await fs.copyFile(defaultCss, path.join(assetsDir, 'site.css'));
+
+  await fs.copyFile(path.join(here, 'manifest.schema.json'), path.join(outDir, 'manifest.schema.json'));
 
   const alpinePath = require.resolve('alpinejs/dist/cdn.min.js');
   await fs.copyFile(alpinePath, path.join(assetsDir, 'alpine.min.js'));
@@ -51,21 +72,21 @@ function remarkRewriteLinks({ filePath, filesBase, fileSet }) {
   };
 }
 
-async function renderContent(filePath, source, { filesBase = '../files', fileSet = new Set() } = {}) {
+async function renderContent(filePath, source, { filesBase = '../files', fileSet = new Set(), shikiTheme = 'github-dark-default' } = {}) {
   if (isMarkdown(filePath)) {
     const processed = await remark()
       .use(remarkGfm)
       .use(remarkRewriteLinks({ filePath, filesBase, fileSet }))
       .use(remarkHtml)
       .process(source);
-    return `<article class="prose prose-invert max-w-none">${processed.toString()}</article>`;
+    return `<article class="prose-content">${processed.toString()}</article>`;
   }
 
   const language = languageFromPath(filePath);
   try {
     return await codeToHtml(source, {
       lang: language,
-      theme: 'github-dark-default',
+      theme: shikiTheme,
       transformers: [
         {
           line(node, line) {
@@ -79,12 +100,39 @@ async function renderContent(filePath, source, { filesBase = '../files', fileSet
   }
 }
 
-export async function generateSite(repoPaths, outDir) {
+function normalizeStringList(values = []) {
+  return [...new Set(
+    values
+      .filter((value) => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+}
+
+function buildRepoMetadata({ slug, name, description = '', categories = [], tags = [] }) {
+  const metadata = {
+    slug,
+    name,
+    categories: normalizeStringList(categories)
+  };
+
+  if (description) {
+    metadata.description = description;
+  }
+
+  const normalizedTags = normalizeStringList(tags);
+  if (normalizedTags.length > 0) {
+    metadata.tags = normalizedTags;
+  }
+
+  return metadata;
+}
+
+export async function generateSite(repoPaths, outDir, { description = '', categories = [], tags = [], theme = DEFAULT_THEME } = {}) {
   await fs.rm(outDir, { recursive: true, force: true });
   await ensureDir(outDir);
-  await copyAssets(outDir);
+  await copyAssets(outDir, theme);
 
-  const repoMetadata = [];
   const usedSlugs = new Map();
 
   for (const repoPath of repoPaths) {
@@ -100,20 +148,23 @@ export async function generateSite(repoPaths, outDir) {
 
     const repoOutDir = path.join(outDir, slug);
     const filesOutDir = path.join(repoOutDir, 'files');
+    const repoMetadata = buildRepoMetadata({ slug, name: repoName, description, categories, tags });
 
     await ensureDir(filesOutDir);
+    await fs.writeFile(path.join(repoOutDir, 'metadata.json'), JSON.stringify(repoMetadata, null, 2) + '\n', 'utf8');
 
     const allFiles = await walkRepo(repoPath);
     const files = allFiles.filter((f) => !isBinary(f));
     const fileSet = new Set(allFiles);
     const tree = buildTree(files);
+    const shikiTheme = SHIKI_THEMES[theme] || 'github-dark-default';
 
     const fileLinks = [];
     for (const file of files) {
       try {
         const srcPath = path.join(repoPath, file);
         const source = await fs.readFile(srcPath, 'utf8');
-        const rendered = await renderContent(file, source, { filesBase: '../files', fileSet });
+        const rendered = await renderContent(file, source, { filesBase: '../files', fileSet, shikiTheme });
 
         const outName = htmlFileName(file);
         const outputPath = path.join(filesOutDir, outName);
@@ -122,26 +173,33 @@ export async function generateSite(repoPaths, outDir) {
         const page = pageShell({
           title: `${repoName} / ${file}`,
           sidebar,
-          content: `<h1 class="text-xl font-semibold mb-4">${escapeHtml(file)}</h1>${rendered}`,
-          rootPath: '../..'
+          content: `<h1 class="file-title">${escapeHtml(file)}</h1>${rendered}`,
+          rootPath: '../..',
+          breadcrumbs: [
+            { label: 'Repositories', href: '../../index.html' },
+            { label: slug, href: '../index.html' }
+          ],
+          description,
+          themes: THEMES,
+          defaultTheme: theme
         });
 
         await fs.writeFile(outputPath, page, 'utf8');
 
         fileLinks.push(
-          `<li><a class="text-sky-300 hover:text-sky-200" href="./files/${encodeURIComponent(outName)}">${escapeHtml(file)}</a></li>`
+          `<li><a href="./files/${encodeURIComponent(outName)}">${escapeHtml(file)}</a></li>`
         );
       } catch (err) {
         console.warn(`Skipping ${file}: ${err.message}`);
       }
     }
 
-    let readmeContent = '<h1 class="text-xl font-semibold mb-4">Files</h1><ul class="space-y-2">' + fileLinks.join('') + '</ul>';
+    let readmeContent = '<h1 class="file-title">Files</h1><ul class="file-list">' + fileLinks.join('') + '</ul>';
     const readmeFile = allFiles.find((f) => /^readme\.md$/i.test(f));
     if (readmeFile) {
       try {
         const readmeSrc = await fs.readFile(path.join(repoPath, readmeFile), 'utf8');
-        readmeContent = await renderContent(readmeFile, readmeSrc, { filesBase: './files', fileSet });
+        readmeContent = await renderContent(readmeFile, readmeSrc, { filesBase: './files', fileSet, shikiTheme });
       } catch {}
     }
 
@@ -149,13 +207,18 @@ export async function generateSite(repoPaths, outDir) {
       title: repoName,
       sidebar: renderTree(tree, './files'),
       content: readmeContent,
-      rootPath: '..'
+      rootPath: '..',
+      breadcrumbs: [
+        { label: 'Repositories', href: '../index.html' },
+        { label: slug }
+      ],
+      description,
+      themes: THEMES,
+      defaultTheme: theme
     });
 
     await fs.writeFile(path.join(repoOutDir, 'index.html'), indexPage, 'utf8');
-
-    repoMetadata.push({ slug, name: repoName });
   }
 
-  await fs.writeFile(path.join(outDir, 'index.html'), globalIndexPage(repoMetadata), 'utf8');
+  await fs.writeFile(path.join(outDir, 'index.html'), rootIndexPage({ themes: THEMES, defaultTheme: theme }), 'utf8');
 }

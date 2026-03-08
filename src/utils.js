@@ -112,12 +112,12 @@ export function renderTree(tree, filesBase = '../files', activeFile = '', prefix
       if (node.__file) {
         const href = `${filesBase}/${encodeURIComponent(htmlFileName(currentPath))}`;
         const active = currentPath === activeFile;
-        const cls = active ? 'text-sky-300 font-semibold' : 'text-slate-300';
-        return `<li class="pl-2"><a class="${cls} hover:text-sky-300" href="${href}">${escapeHtml(name)}</a></li>`;
+        const cls = active ? ' class="active"' : '';
+        return `<li><a${cls} href="${href}">${escapeHtml(name)}</a></li>`;
       }
 
       const isAncestor = activeFile.startsWith(currentPath + '/');
-      return `<li x-data="{open:${isAncestor}}" class="pl-2"><button class="text-slate-200 hover:text-sky-300" @click="open=!open">\u{1F4C1} ${escapeHtml(name)}</button><ul x-show="open" class="ml-3 border-l border-slate-700">${childHtml}</ul></li>`;
+      return `<li x-data="{open:${isAncestor}}"><button class="folder-toggle" @click="open=!open">\u{1F4C1} ${escapeHtml(name)}</button><ul x-show="open" class="folder-children">${childHtml}</ul></li>`;
     })
     .join('');
 }
