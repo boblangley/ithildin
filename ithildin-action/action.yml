@@ -1,0 +1,28 @@
+name: 'Ithildin Static Site Build'
+description: 'Build a static repository browser with Ithildin and upload dist as an artifact'
+inputs:
+  repository:
+    description: 'Path to repository root'
+    required: false
+    default: '.'
+  output:
+    description: 'Output folder for generated static site'
+    required: false
+    default: 'dist'
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install Ithildin
+      shell: bash
+      run: npm install -g ithildin
+    - name: Build static site
+      shell: bash
+      run: ithildin --repo "${{ inputs.repository }}" --out "${{ inputs.output }}"
+    - name: Upload dist artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ithildin-dist
+        path: ${{ inputs.output }}
